@@ -4,9 +4,10 @@ services:
     env: node
     plan: free
     rootDir: backend
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npm run build && echo "=== BUILD OUTPUT ===" && find dist -maxdepth 2 -type f
     startCommand: npm run start
     healthCheckPath: /api/health
+
     envVars:
       - key: NODE_ENV
         value: production
