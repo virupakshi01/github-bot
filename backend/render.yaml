@@ -4,8 +4,21 @@ services:
     env: node
     plan: free
     rootDir: backend
-    buildCommand: npm install && npm run build && echo "=== BUILD OUTPUT ===" && find dist -maxdepth 2 -type f
-    startCommand: npm run start
+
+    buildCommand: |
+      npm install
+      npm run build
+      echo "=== CURRENT DIRECTORY ==="
+      pwd
+      echo "=== FILES ==="
+      ls -la
+      echo "=== DIST ==="
+      ls -la dist
+      echo "=== SERVER ==="
+      ls -la dist/server.js
+
+    startCommand: node dist/server.js
+
     healthCheckPath: /api/health
 
     envVars:
