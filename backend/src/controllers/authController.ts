@@ -22,8 +22,9 @@ export function startGithubLogin(req: Request, res: Response): void {
 export async function handleGithubCallback(req: Request, res: Response): Promise<void> {
   const { code, state } = req.query as { code?: string; state?: string };
   const expectedState = req.cookies?.[STATE_COOKIE];
-
+  
   if (!code || !state || !expectedState || state !== expectedState) {
+    console.log("code:", code, "state:", state, "expectedState:", expectedState);
     res.status(400).json({ error: "Invalid OAuth state" });
     return;
   }
