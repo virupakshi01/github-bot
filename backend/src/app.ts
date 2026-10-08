@@ -10,9 +10,7 @@ import { errorHandler } from "./middleware/errorHandler";
 export function createApp() {
   const app = express();
 
-  const allowedOrigins = ['http://localhost:4200', env.FRONTEND_URL];
-
-  app.use(cors({ origin: allowedOrigins, credentials: true }));
+  app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
   app.use(pinoHttp({ logger }));
   app.use(cookieParser());
 
