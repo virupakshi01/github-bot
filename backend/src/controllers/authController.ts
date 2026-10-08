@@ -8,6 +8,16 @@ import { logger } from "../logger";
 
 const STATE_COOKIE = "oauth_state";
 
+function sessionCookieOptions() {
+  const isProduction = env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    secure: isProduction,
+    path: "/",
+  };
+}
+
 export function startGithubLogin(req: Request, res: Response): void {
   const state = crypto.randomBytes(16).toString("hex");
   res.cookie(STATE_COOKIE, state, {
@@ -53,9 +63,7 @@ export async function handleGithubCallback(req: Request, res: Response): Promise
     });
 
     res.cookie("session", sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: env.NODE_ENV === "production",
+      ...sessionCookieOptions(),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -67,7 +75,7 @@ export async function handleGithubCallback(req: Request, res: Response): Promise
 }
 
 export function logout(req: Request, res: Response): void {
-  res.clearCookie("session");
+  res.clearCookie("session", sessionCookieOptions());
   res.status(204).send();
 }
 
