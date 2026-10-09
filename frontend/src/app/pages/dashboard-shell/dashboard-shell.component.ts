@@ -68,6 +68,11 @@ import { IconComponent } from "../../shared/ui/icon/icon.component";
       }
 
       .sidebar {
+        position: sticky;
+        top: 0;
+        align-self: start;
+        height: 100vh;
+        overflow-y: auto;
         background: var(--surface);
         border-right: 1px solid var(--border);
         display: flex;
