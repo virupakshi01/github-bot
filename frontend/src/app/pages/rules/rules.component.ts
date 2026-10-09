@@ -18,6 +18,7 @@ interface ConnectedRepo {
 
 interface Rule {
   id: string;
+  repositoryId: string;
   name: string;
   enabled: boolean;
   conditions: {
@@ -32,6 +33,16 @@ interface Rule {
     postComment?: string;
     slackNotify?: boolean;
   };
+}
+
+interface RuleApiResponse {
+  id?: string;
+  _id?: string;
+  repositoryId?: string | { id?: string; _id?: string };
+  name?: string;
+  enabled?: boolean;
+  conditions?: Rule["conditions"];
+  actions?: Rule["actions"];
 }
 
 @Component({
@@ -120,9 +131,11 @@ interface Rule {
         <label class="checkbox-row">
           <input type="checkbox" [(ngModel)]="draft.slackNotify" /> Notify Slack
         </label>
-        <p class="muted" *ngIf="!hasAction()">Choose at least one action before creating this rule.</p>
+        <p class="muted" *ngIf="!draft.name.trim()">Enter a name for this rule.</p>
+        <p class="muted" *ngIf="draft.name.trim() && !hasCondition()">Choose at least one condition.</p>
+        <p class="muted" *ngIf="hasCondition() && !hasAction()">Choose at least one action.</p>
 
-        <button class="btn" style="margin-top:var(--space-2);" [disabled]="creating || !hasAction()" (click)="createRule()">
+        <button class="btn" style="margin-top:var(--space-2);" [disabled]="creating || !isDraftValid()" (click)="createRule()">
           <app-icon name="plus" [size]="14"></app-icon>
           {{ creating ? "Creating..." : "Create rule" }}
         </button>
@@ -137,7 +150,7 @@ interface Rule {
         description="Create your first rule above to start automating this repository."
       ></app-empty-state>
 
-      <div class="card rule-row" *ngFor="let rule of rules">
+      <div class="card rule-row" *ngFor="let rule of rules; trackBy: trackRule">
         <div class="rule-info">
           <div class="rule-title">
             <strong>{{ rule.name }}</strong>
@@ -232,10 +245,12 @@ export class RulesComponent implements OnInit {
     this.rules = [];
     try {
       const res = await firstValueFrom(
-        this.api.get<{ rules: Rule[] }>("/rules", { repositoryId })
+        this.api.get<{ rules: RuleApiResponse[] }>("/rules", { repositoryId })
       );
       if (requestId !== this.rulesRequestId) return;
-      this.rules = res.rules;
+      this.rules = res.rules
+        .map((rule) => this.normalizeRule(rule))
+        .filter((rule): rule is Rule => rule !== null && rule.repositoryId === repositoryId);
     } catch {
       if (requestId !== this.rulesRequestId) return;
       this.toast.error("Failed to load rules for this repository.");
@@ -248,9 +263,46 @@ export class RulesComponent implements OnInit {
     return Boolean(this.draft.addLabel.trim() || this.draft.postComment.trim() || this.draft.slackNotify);
   }
 
+  hasCondition(): boolean {
+    return Boolean(
+      this.draft.eventType.trim() ||
+        this.draft.action.trim() ||
+        this.draft.titleKeywords.split(",").some((value) => value.trim()) ||
+        this.draft.author.trim() ||
+        this.draft.labels.split(",").some((value) => value.trim())
+    );
+  }
+
+  isDraftValid(): boolean {
+    return Boolean(this.draft.name.trim() && this.hasCondition() && this.hasAction());
+  }
+
+  private normalizeRule(rule: RuleApiResponse): Rule | null {
+    const id = rule.id ?? rule._id;
+    const rawRepositoryId = rule.repositoryId;
+    const repositoryId =
+      typeof rawRepositoryId === "string"
+        ? rawRepositoryId
+        : rawRepositoryId?.id ?? rawRepositoryId?._id;
+    if (!id || !repositoryId) return null;
+
+    return {
+      id,
+      repositoryId,
+      name: rule.name?.trim() || "Untitled rule",
+      enabled: rule.enabled ?? true,
+      conditions: rule.conditions ?? {},
+      actions: rule.actions ?? {},
+    };
+  }
+
+  trackRule(_index: number, rule: Rule): string {
+    return rule.id;
+  }
+
   async createRule() {
-    if (!this.hasAction()) {
-      this.toast.error("Choose at least one action before creating this rule.");
+    if (!this.isDraftValid()) {
+      this.toast.error("Enter a name, choose at least one condition, and choose at least one action.");
       return;
     }
     const csv = (v: string) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
@@ -259,13 +311,13 @@ export class RulesComponent implements OnInit {
       await firstValueFrom(
         this.api.post("/rules", {
           repositoryId: this.selectedRepoId,
-          name: this.draft.name || "Untitled rule",
+          name: this.draft.name.trim(),
           enabled: true,
           conditions: {
-            eventType: this.draft.eventType || undefined,
-            action: this.draft.action || undefined,
+            eventType: this.draft.eventType.trim() || undefined,
+            action: this.draft.action.trim() || undefined,
             titleKeywords: csv(this.draft.titleKeywords),
-            author: this.draft.author || undefined,
+            author: this.draft.author.trim() || undefined,
             labels: csv(this.draft.labels),
           },
           actions: {

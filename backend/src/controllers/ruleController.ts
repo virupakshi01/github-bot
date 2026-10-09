@@ -4,22 +4,35 @@ import { Repository } from "../models/Repository";
 import { Rule } from "../models/Rule";
 
 const conditionsSchema = z.object({
-  eventType: z.string().optional(),
-  action: z.string().optional(),
-  titleKeywords: z.array(z.string()).optional(),
-  author: z.string().optional(),
-  labels: z.array(z.string()).optional(),
-});
+  eventType: z.string().trim().min(1).optional(),
+  action: z.string().trim().min(1).optional(),
+  titleKeywords: z.array(z.string().trim().min(1)).optional(),
+  author: z.string().trim().min(1).optional(),
+  labels: z.array(z.string().trim().min(1)).optional(),
+}).refine(
+  (conditions) =>
+    Boolean(
+      conditions.eventType ||
+        conditions.action ||
+        conditions.titleKeywords?.length ||
+        conditions.author ||
+        conditions.labels?.length
+    ),
+  { message: "At least one condition is required" }
+);
 
 const actionsSchema = z.object({
-  addLabel: z.string().optional(),
-  postComment: z.string().optional(),
+  addLabel: z.string().trim().min(1).optional(),
+  postComment: z.string().trim().min(1).optional(),
   slackNotify: z.boolean().optional(),
-});
+}).refine(
+  (actions) => Boolean(actions.addLabel || actions.postComment || actions.slackNotify),
+  { message: "At least one action is required" }
+);
 
 const ruleSchema = z.object({
   repositoryId: z.string().min(1),
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
   enabled: z.boolean().default(true),
   conditions: conditionsSchema,
   actions: actionsSchema,
@@ -37,7 +50,17 @@ export async function listRules(req: Request, res: Response): Promise<void> {
     return;
   }
   const rules = await Rule.find({ repositoryId }).sort({ createdAt: -1 });
-  res.json({ rules });
+  res.json({
+    rules: rules.map((rule) => ({
+      id: String(rule._id),
+      repositoryId: String(rule.repositoryId),
+      name: rule.name,
+      enabled: rule.enabled,
+      conditions: rule.conditions,
+      actions: rule.actions,
+      createdAt: rule.createdAt,
+    })),
+  });
 }
 
 export async function createRule(req: Request, res: Response): Promise<void> {
