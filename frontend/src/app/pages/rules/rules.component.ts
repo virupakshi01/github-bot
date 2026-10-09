@@ -120,8 +120,9 @@ interface Rule {
         <label class="checkbox-row">
           <input type="checkbox" [(ngModel)]="draft.slackNotify" /> Notify Slack
         </label>
+        <p class="muted" *ngIf="!hasAction()">Choose at least one action before creating this rule.</p>
 
-        <button class="btn" style="margin-top:var(--space-2);" [disabled]="creating" (click)="createRule()">
+        <button class="btn" style="margin-top:var(--space-2);" [disabled]="creating || !hasAction()" (click)="createRule()">
           <app-icon name="plus" [size]="14"></app-icon>
           {{ creating ? "Creating..." : "Create rule" }}
         </button>
@@ -161,6 +162,7 @@ interface Rule {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
         gap: var(--space-4);
       }
       .rule-info {
@@ -193,6 +195,7 @@ export class RulesComponent implements OnInit {
   loading = true;
   rulesLoading = false;
   creating = false;
+  private rulesRequestId = 0;
 
   draft = {
     name: "",
@@ -223,20 +226,33 @@ export class RulesComponent implements OnInit {
 
   async loadRules() {
     if (!this.selectedRepoId) return;
+    const requestId = ++this.rulesRequestId;
+    const repositoryId = this.selectedRepoId;
     this.rulesLoading = true;
+    this.rules = [];
     try {
       const res = await firstValueFrom(
-        this.api.get<{ rules: Rule[] }>("/rules", { repositoryId: this.selectedRepoId })
+        this.api.get<{ rules: Rule[] }>("/rules", { repositoryId })
       );
+      if (requestId !== this.rulesRequestId) return;
       this.rules = res.rules;
     } catch {
+      if (requestId !== this.rulesRequestId) return;
       this.toast.error("Failed to load rules for this repository.");
     } finally {
-      this.rulesLoading = false;
+      if (requestId === this.rulesRequestId) this.rulesLoading = false;
     }
   }
 
+  hasAction(): boolean {
+    return Boolean(this.draft.addLabel.trim() || this.draft.postComment.trim() || this.draft.slackNotify);
+  }
+
   async createRule() {
+    if (!this.hasAction()) {
+      this.toast.error("Choose at least one action before creating this rule.");
+      return;
+    }
     const csv = (v: string) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
     this.creating = true;
     try {
